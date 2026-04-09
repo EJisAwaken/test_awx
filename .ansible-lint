@@ -1,0 +1,8 @@
+---
+skip_list:
+  - risky-file-permissions
+  - fqcn-builtins
+warn_list:
+  - yaml
+  - name[missing]
+

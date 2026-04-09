@@ -1,0 +1,12 @@
+---
+patch_security_mode: security
+patch_security_packages: []
+patch_security_allow_fallback_to_all: true
+
+patch_security_reboot: auto
+patch_security_reboot_timeout: 900
+patch_security_reboot_msg: "Reboot après application de patchs de sécurité"
+
+patch_security_report_dir: "/var/log/ansible"
+patch_security_report_filename: "patch_security_report.json"
+

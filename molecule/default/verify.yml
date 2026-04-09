@@ -1,0 +1,17 @@
+---
+- name: Verify
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Vérifier présence du rapport
+      ansible.builtin.stat:
+        path: /var/log/ansible/patch_security_report.json
+      register: report
+
+    - name: Asserts
+      ansible.builtin.assert:
+        that:
+          - report.stat.exists
+          - report.stat.size > 0
+

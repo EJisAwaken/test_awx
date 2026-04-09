@@ -1,0 +1,16 @@
+---
+galaxy_info:
+  role_name: patch_security
+  author: ""
+  description: "Patching sécurité ciblé + reboot contrôlé + rapport"
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: ["bookworm", "bullseye"]
+    - name: Ubuntu
+      versions: ["jammy", "focal"]
+    - name: EL
+      versions: ["8", "9"]
+dependencies: []
+

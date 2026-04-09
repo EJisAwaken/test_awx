@@ -1,0 +1,29 @@
+---
+dependency:
+  name: galaxy
+  options:
+    requirements-file: ${MOLECULE_PROJECT_DIRECTORY}/requirements.yml
+
+driver:
+  name: docker
+
+platforms:
+  - name: instance
+    image: "geerlingguy/docker-ubuntu2404-ansible:latest"
+    privileged: true
+    pre_build_image: true
+
+provisioner:
+  name: ansible
+  env:
+    ANSIBLE_STDOUT_CALLBACK: ansible.builtin.default
+    ANSIBLE_CALLBACK_RESULT_FORMAT: yaml
+  playbooks:
+    converge: converge.yml
+  config_options:
+    defaults:
+      roles_path: "${MOLECULE_PROJECT_DIRECTORY}/roles"
+
+verifier:
+  name: ansible
+

@@ -1,0 +1,6 @@
+---
+- name: Reboot system
+  ansible.builtin.reboot:
+    msg: "{{ patch_security_reboot_msg }}"
+    reboot_timeout: "{{ patch_security_reboot_timeout }}"
+

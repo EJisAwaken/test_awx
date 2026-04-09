@@ -1,0 +1,6 @@
+{#
+  Rapport JSON déterministe pour l'idempotence (tri des clés).
+  to_nice_json peut inclure des variations d'ordre/format selon versions.
+#}
+{{ patch_security_report | to_json(sort_keys=True) }}
+

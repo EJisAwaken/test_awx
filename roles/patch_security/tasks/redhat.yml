@@ -1,0 +1,48 @@
+---
+- name: Installer outils requis (RHEL-like)
+  ansible.builtin.package:
+    name:
+      - yum-utils
+    state: present
+
+- name: Appliquer patchs ciblés (packages explicites)
+  when: patch_security_packages | length > 0
+  ansible.builtin.dnf:
+    name: "{{ patch_security_packages }}"
+    state: present
+    update_only: true
+  register: patch_security_rhel_pkg_result
+
+- name: Appliquer mises à jour de sécurité (security)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'security'
+  ansible.builtin.dnf:
+    name: "*"
+    state: present
+    security: true
+    update_only: true
+  register: patch_security_rhel_sec_result
+
+- name: Appliquer toutes les mises à jour (all)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'all'
+  ansible.builtin.dnf:
+    name: "*"
+    state: present
+    update_only: true
+  register: patch_security_rhel_all_result
+
+- name: Marquer changement + détails
+  ansible.builtin.set_fact:
+    patch_security_report: >-
+      {{ patch_security_report | combine({
+          'changed': (patch_security_rhel_pkg_result.changed | default(false)) or (patch_security_rhel_sec_result.changed | default(false)) or (patch_security_rhel_all_result.changed | default(false)),
+          'details': {
+            'dnf_pkg': patch_security_rhel_pkg_result | default({}),
+            'dnf_security': patch_security_rhel_sec_result | default({}),
+            'dnf_all': patch_security_rhel_all_result | default({})
+          }
+      }, recursive=True) }}
+

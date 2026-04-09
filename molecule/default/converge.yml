@@ -1,0 +1,13 @@
+---
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    patch_security_mode: all
+    patch_security_reboot: never
+
+  roles:
+    - role: patch_security
+

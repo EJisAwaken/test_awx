@@ -1,0 +1,39 @@
+---
+- name: Appliquer patchs ciblés (packages explicites)
+  when: patch_security_packages | length > 0
+  community.general.zypper:
+    name: "{{ patch_security_packages }}"
+    state: present
+  register: patch_security_suse_pkg_result
+
+- name: Appliquer mises à jour de sécurité (security)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'security'
+  community.general.zypper:
+    name: '*'
+    state: present
+    type: patch
+  register: patch_security_suse_sec_result
+
+- name: Appliquer toutes les mises à jour (all)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'all'
+  community.general.zypper:
+    name: '*'
+    state: present
+  register: patch_security_suse_all_result
+
+- name: Marquer changement + détails
+  ansible.builtin.set_fact:
+    patch_security_report: >-
+      {{ patch_security_report | combine({
+          'changed': (patch_security_suse_pkg_result.changed | default(false)) or (patch_security_suse_sec_result.changed | default(false)) or (patch_security_suse_all_result.changed | default(false)),
+          'details': {
+            'zypper_pkg': patch_security_suse_pkg_result | default({}),
+            'zypper_security': patch_security_suse_sec_result | default({}),
+            'zypper_all': patch_security_suse_all_result | default({})
+          }
+      }, recursive=True) }}
+

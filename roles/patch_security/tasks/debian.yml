@@ -1,0 +1,119 @@
+---
+- name: Update cache (Debian)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Vérifier l'état dpkg (paquets non configurés)
+  ansible.builtin.command: dpkg --audit
+  register: patch_security_dpkg_audit
+  changed_when: false
+  failed_when: false
+
+- name: Stopper si dpkg est cassé (ex: grub-pc non configuré)
+  when: patch_security_dpkg_audit.stdout is defined and (patch_security_dpkg_audit.stdout | trim) != ''
+  ansible.builtin.fail:
+    msg: |
+      dpkg signale des problèmes (paquets non configurés / half-installed).\n\n
+      Vous devez réparer l'état dpkg AVANT d'appliquer les patchs, sinon apt/dpkg échouera.\n\n
+      Sortie dpkg --audit:\n
+      {{ patch_security_dpkg_audit.stdout }}\n\n
+      Correctifs typiques (à faire sur la machine):\n
+      - sudo dpkg --configure -a\n
+      - sudo dpkg-reconfigure grub-pc   (si grub-pc est en cause)\n
+      - sudo apt-get -f install
+
+- name: Appliquer patchs ciblés (packages explicites)
+  when: patch_security_packages | length > 0
+  ansible.builtin.apt:
+    name: "{{ patch_security_packages }}"
+    state: present
+    only_upgrade: true
+  register: patch_security_debian_pkg_result
+
+- name: Appliquer mises à jour de sécurité (préférées)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'security'
+  block:
+    # Sur Debian/Ubuntu, l’option officielle "upgrade: dist" ne filtre pas 'security'.
+    # Approche pragmatique: utiliser unattended-upgrades s’il existe, sinon fallback.
+    - name: Vérifier si unattended-upgrades est présent
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Exécuter unattended-upgrades (security)
+      when: "'unattended-upgrades' in ansible_facts.packages"
+      ansible.builtin.command: unattended-upgrade -d
+      register: patch_security_unattended_run
+      changed_when: "'Packages that will be upgraded:' in (patch_security_unattended_run.stdout | default(''))"
+      failed_when: false
+
+    - name: Fallback vers upgrade complet si non supporté
+      when:
+        - "'unattended-upgrades' not in ansible_facts.packages"
+        - patch_security_allow_fallback_to_all
+      block:
+        - name: Dist-upgrade (fallback)
+          ansible.builtin.apt:
+            upgrade: dist
+          register: patch_security_debian_upgrade_result
+      rescue:
+        - name: Marquer une erreur apt/dpkg dans le rapport
+          ansible.builtin.set_fact:
+            patch_security_report: >-
+              {{ patch_security_report | combine({
+                  'details': patch_security_report.details | combine({
+                    'apt_error': {
+                      'msg': 'Echec apt/dpkg pendant dist-upgrade (fallback). Tentative de réparation ensuite.',
+                      'failed_task': 'Dist-upgrade (fallback)'
+                    }
+                  }, recursive=True)
+              }, recursive=True) }}
+
+        - name: Tentative de réparation dpkg (configure)
+          ansible.builtin.command: dpkg --configure -a
+          register: patch_security_dpkg_configure
+          changed_when: false
+          failed_when: false
+
+        - name: Tentative de réparation apt (fix broken)
+          ansible.builtin.command: apt-get -y -o Dpkg::Options::=--force-confold -f install
+          register: patch_security_apt_fix
+          changed_when: false
+          failed_when: false
+
+        - name: Re-tenter dist-upgrade après réparation
+          ansible.builtin.apt:
+            upgrade: dist
+          register: patch_security_debian_upgrade_result
+
+        - name: Détecter un blocage GRUB (grub-pc) fréquent en VM
+          ansible.builtin.set_fact:
+            patch_security_report: >-
+              {{ patch_security_report | combine({
+                  'details': patch_security_report.details | combine({
+                    'grub_hint': 'Si l\'erreur concerne grub-pc/grub-install: vérifier /etc/default/grub et les devices GRUB (dpkg-reconfigure grub-pc), ou corriger les /dev/disk/by-id manquants en VM.'
+                  }, recursive=True)
+              }, recursive=True) }}
+
+- name: Appliquer toutes les mises à jour (all)
+  when:
+    - patch_security_packages | length == 0
+    - patch_security_mode == 'all'
+  ansible.builtin.apt:
+    upgrade: dist
+  register: patch_security_debian_upgrade_result
+
+- name: Marquer changement + détails
+  ansible.builtin.set_fact:
+    patch_security_report: >-
+      {{ patch_security_report | combine({
+          'changed': (patch_security_debian_pkg_result.changed | default(false)) or (patch_security_debian_upgrade_result.changed | default(false)),
+          'details': {
+            'apt_pkg': patch_security_debian_pkg_result | default({}),
+            'apt_upgrade': patch_security_debian_upgrade_result | default({}),
+            'unattended': patch_security_unattended_run | default({})
+          }
+      }, recursive=True) }}
+

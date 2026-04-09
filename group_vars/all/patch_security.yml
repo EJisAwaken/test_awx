@@ -1,0 +1,25 @@
+---
+# Mode de patching:
+# - security: tenter de n'appliquer que les mises à jour de sécurité (quand supporté)
+# - all: appliquer toutes les mises à jour (fallback)
+patch_security_mode: security
+
+# Liste optionnelle de packages à cibler (vide = patching global selon mode)
+patch_security_packages: []
+
+# Autoriser le fallback en 'all' si 'security' n'est pas supporté
+patch_security_allow_fallback_to_all: true
+
+# Reboot
+patch_security_reboot: "auto"   # auto|always|never
+patch_security_reboot_timeout: 900
+patch_security_reboot_msg: "Reboot après application de patchs de sécurité"
+
+# Fenêtre de maintenance basique (optionnel)
+# Exemple: "Sat 02:00" / selon votre politique, à intégrer avec un contrôle externe.
+patch_security_maintenance_window: ""
+
+# Fragments de rapport
+patch_security_report_dir: "/var/log/ansible"
+patch_security_report_filename: "patch_security_report.json"
+

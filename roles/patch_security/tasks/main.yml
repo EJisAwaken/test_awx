@@ -1,0 +1,92 @@
+---
+- name: Vérifier la famille OS supportée
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'RedHat', 'Suse']
+    fail_msg: "OS non supporté par ce rôle: {{ ansible_facts.os_family }}"
+
+- name: Initialiser le rapport
+  ansible.builtin.set_fact:
+    patch_security_report:
+      host: "{{ inventory_hostname }}"
+      os_family: "{{ ansible_facts.os_family }}"
+      distribution: "{{ ansible_facts.distribution }}"
+      distribution_version: "{{ ansible_facts.distribution_version }}"
+      mode: "{{ patch_security_mode }}"
+      packages_targeted: "{{ patch_security_packages }}"
+      changed: false
+      reboot_requested: false
+      details: {}
+
+- name: Appliquer patchs (Debian/Ubuntu)
+  when: ansible_facts.os_family == 'Debian'
+  ansible.builtin.include_tasks: debian.yml
+
+- name: Appliquer patchs (RHEL-like)
+  when: ansible_facts.os_family == 'RedHat'
+  ansible.builtin.include_tasks: redhat.yml
+
+- name: Appliquer patchs (SUSE)
+  when: ansible_facts.os_family == 'Suse'
+  ansible.builtin.include_tasks: suse.yml
+
+- name: Décider du reboot (auto)
+  when: patch_security_reboot == 'auto'
+  block:
+    - name: Détecter si un reboot est requis (Debian)
+      when: ansible_facts.os_family == 'Debian'
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: patch_security_reboot_required_debian
+
+    - name: Détecter si un reboot est requis (RHEL/SUSE)
+      when: ansible_facts.os_family in ['RedHat', 'Suse']
+      ansible.builtin.command: needs-restarting -r
+      register: patch_security_needs_restarting
+      failed_when: false
+      changed_when: false
+
+    - name: Marquer reboot requis
+      ansible.builtin.set_fact:
+        patch_security_reboot_required: >-
+          {{ (patch_security_reboot_required_debian.stat.exists | default(false))
+             or (patch_security_needs_restarting.rc | default(0)) != 0 }}
+
+- name: Déclencher reboot (always)
+  when: patch_security_reboot == 'always'
+  ansible.builtin.set_fact:
+    patch_security_reboot_required: true
+
+- name: Interdire reboot (never)
+  when: patch_security_reboot == 'never'
+  ansible.builtin.set_fact:
+    patch_security_reboot_required: false
+
+- name: Mettre à jour le rapport reboot
+  ansible.builtin.set_fact:
+    patch_security_report: "{{ patch_security_report | combine({'reboot_requested': (patch_security_reboot_required | default(false))}) }}"
+
+- name: Reboot si requis
+  when: patch_security_reboot_required | default(false)
+  ansible.builtin.meta: flush_handlers
+
+- name: Déclencher le handler reboot si requis
+  when: patch_security_reboot_required | default(false)
+  ansible.builtin.debug:
+    msg: "Reboot requis -> handler déclenché"
+  changed_when: true
+  notify: Reboot system
+
+- name: Créer le répertoire de rapport
+  ansible.builtin.file:
+    path: "{{ patch_security_report_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Écrire le rapport local JSON
+  when:
+    - patch_security_report.changed | default(false) or (patch_security_reboot_required | default(false))
+  ansible.builtin.template:
+    src: report.json.j2
+    dest: "{{ patch_security_report_dir }}/{{ patch_security_report_filename }}"
+    mode: '0644'
