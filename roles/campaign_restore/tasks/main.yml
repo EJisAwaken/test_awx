@@ -1,0 +1,54 @@
+---
+- name: Déterminer l'archive de backup à restaurer
+  ansible.builtin.set_fact:
+    campaign_backup_archive_effective: >-
+      {{ (campaign_backup_archive | trim) if (campaign_backup_archive | default('') | trim) != ''
+         else (campaign_backup_dir ~ '/campaign-' ~ (campaign_id | default('campaign')) ~ '-' ~ inventory_hostname ~ '.tar.gz') }}
+  changed_when: false
+
+- name: Vérifier que l'archive existe
+  ansible.builtin.stat:
+    path: "{{ campaign_backup_archive_effective }}"
+  register: campaign_restore_archive_stat
+
+- name: Stopper si aucune archive trouvée
+  when: not campaign_restore_archive_stat.stat.exists
+  ansible.builtin.fail:
+    msg: "Archive de backup introuvable: {{ campaign_backup_archive_effective }}"
+
+- name: Lister le contenu de l'archive (pour audit)
+  ansible.builtin.command: >-
+    tar -tzf "{{ campaign_backup_archive_effective }}"
+  register: campaign_restore_tar_list
+  changed_when: false
+
+- name: Refuser les entrées potentiellement dangereuses (.. ou chemin relatif)
+  ansible.builtin.assert:
+    that:
+      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('match', '(^\\.\\./|/\\.\\./|\\.\\.$|^\\./)') | list | length) == 0"
+      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('match', '^[^/]'). | list | length) == 0"
+    fail_msg: >-
+      Archive de backup potentiellement dangereuse (paths relatifs ou '..').
+      Contenu: {{ campaign_restore_tar_list.stdout_lines | default([]) }}
+
+- name: Restaurer l'archive (tar.gz) à la racine / (rapide)
+  ansible.builtin.command: >-
+    tar -xzf "{{ campaign_backup_archive_effective }}" -C / --overwrite --same-owner
+  register: campaign_restore_tar
+  changed_when: true
+
+- name: Lister les fichiers restaurés (best effort)
+  ansible.builtin.command: >-
+    tar -tzf "{{ campaign_backup_archive_effective }}"
+  register: campaign_restore_tar_restored
+  changed_when: false
+  failed_when: false
+
+- name: Exposer le résultat de restauration
+  ansible.builtin.set_fact:
+    campaign_restore_result:
+      archive: "{{ campaign_backup_archive_effective }}"
+      restored: true
+      tar: "{{ campaign_restore_tar }}"
+      files: "{{ campaign_restore_tar_restored.stdout_lines | default([]) }}"
+

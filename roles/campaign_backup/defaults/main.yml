@@ -1,0 +1,4 @@
+---
+campaign_backup_dir: /var/backups/ansible
+campaign_backup_paths: []
+

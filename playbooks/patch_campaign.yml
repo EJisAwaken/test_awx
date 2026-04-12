@@ -1,0 +1,116 @@
+---
+- name: Campagne de patching sécurité (pré-checks, backup, patch, post-checks, collecte)
+  hosts: all
+  become: "{{ campaign_become | default(true) }}"
+  gather_facts: true
+  serial: "{{ campaign_serial | default('10%') }}"
+  any_errors_fatal: "{{ campaign_fail_fast | default(true) }}"
+  max_fail_percentage: "{{ campaign_max_fail_percentage | default(0) }}"
+
+  pre_tasks:
+    - name: Générer un identifiant de campagne (si non fourni)
+      ansible.builtin.set_fact:
+        campaign_id: "{{ campaign_id | default(lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
+      run_once: true
+      delegate_to: localhost
+
+    - name: Mémoriser l'ID de campagne côté control node
+      ansible.builtin.set_fact:
+        campaign_id_local: "{{ hostvars[inventory_hostname].campaign_id }}"
+      run_once: true
+      delegate_to: localhost
+
+  roles:
+    - role: campaign_prechecks
+
+  tasks:
+    - name: Exécuter backup + patch + post-checks (avec rollback auto)
+      block:
+        - name: Backup avant patch
+          when: (campaign_backup_enabled | default(false)) | bool
+          ansible.builtin.include_role:
+            name: campaign_backup
+
+        - name: Appliquer les patchs
+          ansible.builtin.include_role:
+            name: patch_security
+
+        - name: Post-checks
+          ansible.builtin.include_role:
+            name: campaign_postchecks
+      rescue:
+        - name: Marquer l'échec dans un fact
+          ansible.builtin.set_fact:
+            campaign_failed: true
+
+        - name: Lancer la restauration automatique si backup activé
+          when: (campaign_backup_enabled | default(false)) | bool
+          ansible.builtin.include_role:
+            name: campaign_restore
+
+        - name: Stopper le play sur cet hôte après restauration
+          ansible.builtin.fail:
+            msg: "Echec pendant la campagne. Restauration tentée. Voir les logs et rapports."
+
+  post_tasks:
+    - name: Marquer l'hôte comme patché dans un fact (utile pour la collecte)
+      ansible.builtin.set_fact:
+        campaign_patch_ran: true
+
+- name: Collecte centralisée des rapports (control node)
+  hosts: all
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Déterminer l'ID de campagne depuis localhost
+      ansible.builtin.set_fact:
+        campaign_id_effective: "{{ hostvars['localhost'].campaign_id_local | default('campaign') }}"
+      changed_when: false
+
+    - name: S'assurer que le dossier de campagne existe (local)
+      ansible.builtin.file:
+        path: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+      run_once: true
+
+    - name: Rapatrier le rapport patch_security s'il existe
+      ansible.builtin.fetch:
+        src: "{{ patch_security_report_dir | default('/var/log/ansible') }}/{{ patch_security_report_filename | default('patch_security_report.json') }}"
+        dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/"
+        flat: false
+      failed_when: false
+
+    - name: Écrire un petit statut par hôte
+      ansible.builtin.copy:
+        dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/{{ inventory_hostname }}.status.json"
+        content: "{{ {
+          'host': inventory_hostname,
+          'patched': (hostvars[inventory_hostname].campaign_patch_ran | default(false)),
+          'report_expected_path': ((patch_security_report_dir | default('/var/log/ansible')) ~ '/' ~ (patch_security_report_filename | default('patch_security_report.json')))
+        } | to_json }}"
+        mode: '0644'
+      delegate_to: localhost
+
+- name: Générer un résumé de campagne (control node)
+  hosts: localhost
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Définir l'ID de campagne effectif
+      ansible.builtin.set_fact:
+        campaign_id_effective: "{{ campaign_id_local | default('campaign') }}"
+      changed_when: false
+
+    - name: Écrire un résumé JSON consolidé
+      ansible.builtin.copy:
+        dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/summary.json"
+        content: "{{ {
+          'campaign_id': campaign_id_effective,
+          'hosts': groups['all'] | default([])
+        } | to_nice_json }}"
+        mode: '0644'
+

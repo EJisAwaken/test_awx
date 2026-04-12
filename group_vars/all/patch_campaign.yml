@@ -1,0 +1,38 @@
+---
+# Paramètres de campagne (orchestration)
+
+# Optionnel: fixe l'ID de campagne (sinon auto: YYYYmmdd-HHMMSS côté control node)
+campaign_id: ""
+
+# Élévation (sudo) pour la campagne. En prod: true. En dev/localhost: false (si sudo demande un mot de passe).
+campaign_become: false
+
+# Stratégie de déploiement (limiter le blast radius)
+# Exemples: 1, 2, "10%"
+campaign_serial: "10%"
+
+# Gestion d'erreurs
+campaign_fail_fast: true
+campaign_max_fail_percentage: 0
+
+# Reporting (sur le control node)
+campaign_report_root: "./reports"
+
+# Pré-checks
+campaign_min_free_mb: 512
+campaign_services_required: []
+# Exemple:
+# campaign_services_required:
+#   - ssh
+#   - cron
+
+# Backup (minimal: archive tar)
+campaign_backup_enabled: false
+campaign_backup_dir: "/var/backups/ansible"
+# Liste de chemins à sauvegarder sur l'hôte
+campaign_backup_paths: []
+# Exemple:
+# campaign_backup_paths:
+#   - /etc
+#   - /var/www
+

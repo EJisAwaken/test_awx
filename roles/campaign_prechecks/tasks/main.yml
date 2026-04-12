@@ -1,0 +1,33 @@
+---
+- name: Snapshot avant (kernel / uptime)
+  ansible.builtin.set_fact:
+    campaign_before:
+      kernel: "{{ ansible_facts.kernel }}"
+      kernel_version: "{{ ansible_facts.kernel_version }}"
+      distribution: "{{ ansible_facts.distribution }}"
+      distribution_version: "{{ ansible_facts.distribution_version }}"
+      uptime_seconds: "{{ ansible_facts.uptime_seconds | default(omit) }}"
+  changed_when: false
+
+- name: Vérifier l'espace libre sur /
+  vars:
+    root_mount: "{{ (ansible_facts.mounts | selectattr('mount', 'equalto', '/') | list | first) | default({}) }}"
+    root_avail_mb: "{{ ((root_mount.size_available | default(0)) / 1024 / 1024) | int }}"
+  ansible.builtin.assert:
+    that:
+      - root_avail_mb >= campaign_min_free_mb
+    fail_msg: "Espace libre insuffisant sur / : {{ root_avail_mb }}MB < {{ campaign_min_free_mb }}MB"
+    success_msg: "Espace libre OK sur / : {{ root_avail_mb }}MB"
+
+- name: Collecter l'état des services (si une liste est fournie)
+  when: campaign_services_required | length > 0
+  ansible.builtin.service_facts:
+
+- name: Vérifier services requis (avant)
+  when: campaign_services_required | length > 0
+  ansible.builtin.assert:
+    that:
+      - "(ansible_facts.services[item] is defined) and (ansible_facts.services[item].state in ['running', 'started'])"
+    fail_msg: "Service requis non démarré avant patch: {{ item }}"
+  loop: "{{ campaign_services_required }}"
+

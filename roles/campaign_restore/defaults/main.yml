@@ -1,0 +1,6 @@
+---
+# Répertoire et fichier d'archive à restaurer
+campaign_backup_dir: /var/backups/ansible
+# Optionnel: si vide, on calcule à partir de campaign_id + inventory_hostname
+campaign_backup_archive: ""
+

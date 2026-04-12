@@ -1,0 +1,30 @@
+---
+- name: Créer le répertoire de backup
+  ansible.builtin.file:
+    path: "{{ campaign_backup_dir }}"
+    state: directory
+    mode: '0750'
+
+- name: Déterminer le nom d'archive de backup
+  ansible.builtin.set_fact:
+    campaign_backup_archive: "{{ campaign_backup_dir }}/campaign-{{ campaign_id | default('campaign') }}-{{ inventory_hostname }}.tar.gz"
+  changed_when: false
+
+- name: Vérifier que des chemins de backup sont définis
+  ansible.builtin.assert:
+    that:
+      - campaign_backup_paths | length > 0
+    fail_msg: "campaign_backup_enabled=true mais campaign_backup_paths est vide"
+
+- name: Créer une archive tar.gz des chemins configurés
+  ansible.builtin.command: >-
+    tar -czf "{{ campaign_backup_archive }}" {{ campaign_backup_paths | map('quote') | join(' ') }}
+  args:
+    creates: "{{ campaign_backup_archive }}"
+
+- name: Exposer l'archive dans les facts
+  ansible.builtin.set_fact:
+    campaign_backup_result:
+      archive: "{{ campaign_backup_archive }}"
+      paths: "{{ campaign_backup_paths }}"
+

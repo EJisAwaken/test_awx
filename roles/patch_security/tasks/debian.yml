@@ -10,7 +10,7 @@
   changed_when: false
   failed_when: false
 
-- name: Stopper si dpkg est cassé (ex: grub-pc non configuré)
+- name: "Stopper si dpkg est cassé (ex: grub-pc non configuré)"
   when: patch_security_dpkg_audit.stdout is defined and (patch_security_dpkg_audit.stdout | trim) != ''
   ansible.builtin.fail:
     msg: |

@@ -1,0 +1,1 @@
+{"host": "host1", "patched": true, "report_expected_path": "/var/log/ansible/patch_security_report.json"}

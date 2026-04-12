@@ -1,0 +1,7 @@
+---
+# Seuil d'espace libre minimal (MB) sur /
+campaign_min_free_mb: 512
+
+# Services qui doivent être "running" avant/après (liste optionnelle)
+campaign_services_required: []
+

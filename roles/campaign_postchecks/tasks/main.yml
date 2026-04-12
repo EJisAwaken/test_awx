@@ -1,0 +1,32 @@
+---
+- name: Collecter l'état des services (si une liste est fournie)
+  when: campaign_services_required | length > 0
+  ansible.builtin.service_facts:
+
+- name: Vérifier services requis (après)
+  when: campaign_services_required | length > 0
+  ansible.builtin.assert:
+    that:
+      - "(ansible_facts.services[item] is defined) and (ansible_facts.services[item].state in ['running', 'started'])"
+    fail_msg: "Service requis non démarré après patch: {{ item }}"
+  loop: "{{ campaign_services_required }}"
+
+- name: Snapshot après (kernel / uptime)
+  ansible.builtin.set_fact:
+    campaign_after:
+      kernel: "{{ ansible_facts.kernel }}"
+      kernel_version: "{{ ansible_facts.kernel_version }}"
+      uptime_seconds: "{{ ansible_facts.uptime_seconds | default(omit) }}"
+  changed_when: false
+
+- name: Enrichir le rapport patch_security (avant/après)
+  when: patch_security_report is defined
+  ansible.builtin.set_fact:
+    patch_security_report: >-
+      {{ patch_security_report | combine({
+          'campaign': {
+            'before': campaign_before | default({}),
+            'after': campaign_after | default({})
+          }
+      }, recursive=True) }}
+

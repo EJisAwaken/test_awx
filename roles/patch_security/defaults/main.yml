@@ -1,4 +1,5 @@
 ---
+#ca peut etre security ou all (mettre  a jour tout)
 patch_security_mode: security
 patch_security_packages: []
 patch_security_allow_fallback_to_all: true

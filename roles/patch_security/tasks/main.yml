@@ -14,6 +14,9 @@
       distribution_version: "{{ ansible_facts.distribution_version }}"
       mode: "{{ patch_security_mode }}"
       packages_targeted: "{{ patch_security_packages }}"
+      campaign_id: "{{ campaign_id | default('') }}"
+      run_id: "{{ patch_security_run_id | default(ansible_date_time.iso8601_basic_short) }}"
+      generated_at: "{{ ansible_date_time.iso8601 }}"
       changed: false
       reboot_requested: false
       details: {}
@@ -66,6 +69,15 @@
   ansible.builtin.set_fact:
     patch_security_report: "{{ patch_security_report | combine({'reboot_requested': (patch_security_reboot_required | default(false))}) }}"
 
+- name: Marquer le status du rapport
+  ansible.builtin.set_fact:
+    patch_security_report: >-
+      {{ patch_security_report | combine({
+          'status': (
+            'changed' if (patch_security_report.changed | default(false)) else 'no_change'
+          )
+      }, recursive=True) }}
+
 - name: Reboot si requis
   when: patch_security_reboot_required | default(false)
   ansible.builtin.meta: flush_handlers
@@ -84,9 +96,28 @@
     mode: '0755'
 
 - name: Écrire le rapport local JSON
-  when:
-    - patch_security_report.changed | default(false) or (patch_security_reboot_required | default(false))
   ansible.builtin.template:
     src: report.json.j2
     dest: "{{ patch_security_report_dir }}/{{ patch_security_report_filename }}"
     mode: '0644'
+
+- name: Créer le répertoire de rapports sur le control node
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/reports/patch_security"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  become: false
+  run_once: false
+
+- name: Écrire une copie du rapport JSON sur le control node (identifiable)
+  ansible.builtin.copy:
+    content: "{{ patch_security_report | to_nice_json }}"
+    dest: >-
+      {{ playbook_dir }}/reports/patch_security/
+      {{ (campaign_id | default('nocampaign')) }}__{{ inventory_hostname }}__{{ ansible_date_time.iso8601_basic_short }}.json
+    mode: '0644'
+  delegate_to: localhost
+  become: false
+  run_once: false
+
