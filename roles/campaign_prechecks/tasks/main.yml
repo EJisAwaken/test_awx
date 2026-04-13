@@ -15,9 +15,9 @@
     root_avail_mb: "{{ ((root_mount.size_available | default(0)) / 1024 / 1024) | int }}"
   ansible.builtin.assert:
     that:
-      - root_avail_mb >= campaign_min_free_mb
-    fail_msg: "Espace libre insuffisant sur / : {{ root_avail_mb }}MB < {{ campaign_min_free_mb }}MB"
-    success_msg: "Espace libre OK sur / : {{ root_avail_mb }}MB"
+      - (root_avail_mb | int) >= (campaign_min_free_mb | int)
+    fail_msg: "Espace libre insuffisant sur / : {{ root_avail_mb | int }}MB < {{ campaign_min_free_mb | int }}MB"
+    success_msg: "Espace libre OK sur / : {{ root_avail_mb | int }}MB"
 
 - name: Collecter l'état des services (si une liste est fournie)
   when: campaign_services_required | length > 0
