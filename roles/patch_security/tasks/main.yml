@@ -101,6 +101,12 @@
     dest: "{{ patch_security_report_dir }}/{{ patch_security_report_filename }}"
     mode: '0644'
 
+- name: Publier le rapport comme artifact AWX (stats)
+  ansible.builtin.set_stats:
+    data:
+      patch_security_report: "{{ patch_security_report }}"
+    per_host: true
+
 - name: Créer le répertoire de rapports sur le control node
   ansible.builtin.file:
     path: "{{ playbook_dir }}/reports/patch_security"
