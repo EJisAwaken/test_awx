@@ -1,10 +1,12 @@
 ---
 - name: Update cache (Debian)
+  become: true
   ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
 
 - name: Vérifier l'état dpkg (paquets non configurés)
+  become: true
   ansible.builtin.command: dpkg --audit
   register: patch_security_dpkg_audit
   changed_when: false
@@ -25,6 +27,7 @@
 
 - name: Appliquer patchs ciblés (packages explicites)
   when: patch_security_packages | length > 0
+  become: true
   ansible.builtin.apt:
     name: "{{ patch_security_packages }}"
     state: present
@@ -44,6 +47,7 @@
 
     - name: Exécuter unattended-upgrades (security)
       when: "'unattended-upgrades' in ansible_facts.packages"
+      become: true
       ansible.builtin.command: unattended-upgrade -d
       register: patch_security_unattended_run
       changed_when: "'Packages that will be upgraded:' in (patch_security_unattended_run.stdout | default(''))"
@@ -55,6 +59,7 @@
         - patch_security_allow_fallback_to_all
       block:
         - name: Dist-upgrade (fallback)
+          become: true
           ansible.builtin.apt:
             upgrade: dist
           register: patch_security_debian_upgrade_result
@@ -72,18 +77,21 @@
               }, recursive=True) }}
 
         - name: Tentative de réparation dpkg (configure)
+          become: true
           ansible.builtin.command: dpkg --configure -a
           register: patch_security_dpkg_configure
           changed_when: false
           failed_when: false
 
         - name: Tentative de réparation apt (fix broken)
+          become: true
           ansible.builtin.command: apt-get -y -o Dpkg::Options::=--force-confold -f install
           register: patch_security_apt_fix
           changed_when: false
           failed_when: false
 
         - name: Re-tenter dist-upgrade après réparation
+          become: true
           ansible.builtin.apt:
             upgrade: dist
           register: patch_security_debian_upgrade_result
@@ -101,6 +109,7 @@
   when:
     - patch_security_packages | length == 0
     - patch_security_mode == 'all'
+  become: true
   ansible.builtin.apt:
     upgrade: dist
   register: patch_security_debian_upgrade_result
