@@ -1,0 +1,72 @@
+---
+- name: Créer le répertoire de collecte (before)
+  become: true
+  ansible.builtin.file:
+    path: "{{ campaign_collect_dir }}/{{ campaign_id }}/before"
+    state: directory
+    mode: '0755'
+
+- name: Snapshot système (before)
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    {
+      echo "== DATE =="; date -Is;
+      echo "== HOSTNAME =="; hostname -f 2>/dev/null || hostname;
+      echo "== UPTIME =="; uptime;
+      echo "== KERNEL =="; uname -a;
+      echo "== OS =="; (cat /etc/os-release 2>/dev/null || true);
+      echo "== DISK =="; df -h;
+      echo "== MEM =="; free -h 2>/dev/null || true;
+      echo "== FAILED SYSTEMD UNITS ==";
+      systemctl --failed --no-pager 2>/dev/null || true;
+    } | sed 's/\r$//'
+  args:
+    executable: /bin/bash
+  register: campaign_collect_before_snapshot
+  changed_when: false
+
+- name: Écrire snapshot before
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/before/{{ inventory_hostname }}.snapshot.txt"
+    content: "{{ campaign_collect_before_snapshot.stdout | default('') }}"
+    mode: '0644'
+
+- name: Collecter logs apt (si Debian) before
+  when: ansible_facts.os_family == 'Debian'
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    (
+      test -f /var/log/apt/history.log && tail -n 400 /var/log/apt/history.log || true
+      test -f /var/log/dpkg.log && tail -n 400 /var/log/dpkg.log || true
+    ) | sed 's/\r$//'
+  args:
+    executable: /bin/bash
+  register: campaign_collect_before_apt
+  changed_when: false
+  failed_when: false
+
+- name: Écrire logs apt before
+  when: ansible_facts.os_family == 'Debian'
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/before/{{ inventory_hostname }}.apt_tail.txt"
+    content: "{{ campaign_collect_before_apt.stdout | default('') }}"
+    mode: '0644'
+
+- name: Collecter journald before (best effort)
+  become: true
+  ansible.builtin.command: "journalctl --no-pager --since {{ campaign_collect_journal_since | quote }}"
+  register: campaign_collect_before_journal
+  changed_when: false
+  failed_when: false
+
+- name: Écrire journald before
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/before/{{ inventory_hostname }}.journal.txt"
+    content: "{{ campaign_collect_before_journal.stdout | default('') }}"
+    mode: '0644'
+

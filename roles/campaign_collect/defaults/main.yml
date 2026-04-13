@@ -1,0 +1,11 @@
+---
+# Collecte de logs/état avant/après (campagne)
+campaign_collect_enabled: true
+campaign_collect_dir: "/var/log/ansible/campaign"
+
+# Si true: collecte plus verbeuse (quelques commandes supplémentaires)
+campaign_collect_verbose: false
+
+# Depuis combien de temps récupérer les logs journald (si présent)
+campaign_collect_journal_since: "-2h"
+

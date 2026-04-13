@@ -18,6 +18,11 @@ campaign_max_fail_percentage: 0
 # Reporting (sur le control node)
 campaign_report_root: "./reports"
 
+# Collecte logs/état (sur les hôtes, puis rapatriée sur le control node)
+campaign_collect_enabled: true
+campaign_collect_dir: "/var/log/ansible/campaign"
+campaign_collect_journal_since: "-2h"
+
 # Pré-checks
 campaign_min_free_mb: 512
 campaign_services_required: []
@@ -25,14 +30,21 @@ campaign_services_required: []
 # campaign_services_required:
 #   - ssh
 #   - cron
+#
+## Backup (minimal: archive tar)
+#campaign_backup_enabled: true
+#campaign_backup_dir: "/var/backups/ansible"
+## Liste de chemins à sauvegarder sur l'hôte
+#campaign_backup_paths: []
+## Exemple:
+## campaign_backup_paths:
+##   - /etc
+##   - /var/www
 
-# Backup (minimal: archive tar)
-campaign_backup_enabled: false
-campaign_backup_dir: "/var/backups/ansible"
-# Liste de chemins à sauvegarder sur l'hôte
-campaign_backup_paths: []
-# Exemple:
-# campaign_backup_paths:
-#   - /etc
-#   - /var/www
+campaign_backup_enabled: true
+campaign_backup_dir: /var/backups/ansible
+campaign_backup_paths:
+  - /home/vboxuser/Bureau
+  - /etc/ssh
+
 

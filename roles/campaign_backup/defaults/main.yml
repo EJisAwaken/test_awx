@@ -1,4 +1,8 @@
 ---
+campaign_backup_enabled: true
 campaign_backup_dir: /var/backups/ansible
-campaign_backup_paths: []
+campaign_backup_paths:
+  - /home/vboxuser/Bureau
+  - /etc/ssh
+
 

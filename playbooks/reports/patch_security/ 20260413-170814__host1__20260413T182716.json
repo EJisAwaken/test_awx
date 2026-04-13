@@ -1,0 +1,34 @@
+{
+    "campaign_id": "20260413-170814",
+    "changed": false,
+    "details": {
+        "apt_pkg": {
+            "changed": false,
+            "false_condition": "patch_security_packages | length > 0",
+            "skip_reason": "Conditional result was False",
+            "skipped": true
+        },
+        "apt_upgrade": {
+            "changed": false,
+            "false_condition": "patch_security_mode == 'all'",
+            "skip_reason": "Conditional result was False",
+            "skipped": true
+        },
+        "unattended": {
+            "changed": false,
+            "false_condition": "'unattended-upgrades' in ansible_facts.packages",
+            "skip_reason": "Conditional result was False",
+            "skipped": true
+        }
+    },
+    "distribution": "Debian",
+    "distribution_version": "13.4",
+    "generated_at": "2026-04-13T15:27:16Z",
+    "host": "host1",
+    "mode": "security",
+    "os_family": "Debian",
+    "packages_targeted": [],
+    "reboot_requested": false,
+    "run_id": "20260413T182716",
+    "status": "no_change"
+}

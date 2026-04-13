@@ -1,0 +1,34 @@
+---
+- name: Restaurer une archive de campagne (rollback)
+  hosts: all
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Afficher les paramètres de restauration
+      ansible.builtin.debug:
+        msg:
+          campaign_id: "{{ campaign_id | default('UNDEF') }}"
+          campaign_backup_dir: "{{ campaign_backup_dir | default('UNDEF') }}"
+          campaign_backup_archive: "{{ campaign_backup_archive | default('') }}"
+
+    - name: Vérifier que campaign_id ou campaign_backup_archive est défini
+      ansible.builtin.assert:
+        that:
+          - (campaign_backup_archive | default('') | trim) != '' or (campaign_id | default('') | trim) != ''
+        fail_msg: >-
+          Pour restaurer, fournissez soit:
+          - campaign_backup_archive=/chemin/vers/archive.tar.gz
+          OU
+          - campaign_id=YYYYmmdd-HHMMSS (et campaign_backup_dir si différent de /var/backups/ansible)
+
+  roles:
+    - role: campaign_restore
+
+  post_tasks:
+    - name: Publier le résultat de restauration (artifact AWX)
+      ansible.builtin.set_stats:
+        data:
+          campaign_restore_result: "{{ campaign_restore_result | default({}) }}"
+        per_host: true
+

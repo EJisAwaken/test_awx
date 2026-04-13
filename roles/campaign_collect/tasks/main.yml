@@ -1,0 +1,17 @@
+---
+# Point d'entrée: choisir before/after
+- name: Déterminer le stage de collecte
+  ansible.builtin.assert:
+    that:
+      - campaign_collect_stage is defined
+      - campaign_collect_stage in ['before', 'after']
+    fail_msg: "campaign_collect_stage doit être 'before' ou 'after'"
+
+- name: Exécuter la collecte BEFORE
+  when: campaign_collect_stage == 'before'
+  ansible.builtin.include_tasks: before.yml
+
+- name: Exécuter la collecte AFTER
+  when: campaign_collect_stage == 'after'
+  ansible.builtin.include_tasks: after.yml
+

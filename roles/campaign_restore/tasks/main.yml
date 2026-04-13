@@ -25,8 +25,11 @@
 - name: Refuser les entrées potentiellement dangereuses (.. ou chemin relatif)
   ansible.builtin.assert:
     that:
-      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('match', '(^\\.\\./|/\\.\\./|\\.\\.$|^\\./)') | list | length) == 0"
-      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('match', '^[^/]'). | list | length) == 0"
+      # 1) Interdire toute présence de '..' dans un chemin (traversal)
+      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('search', '(^|/)\\.\\.(?:/|$)') | list | length) == 0"
+      # 2) Interdire chemins absolus (commençant par '/') et entrées vides
+      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('match', '^/') | list | length) == 0"
+      - "(campaign_restore_tar_list.stdout_lines | default([]) | select('equalto', '') | list | length) == 0"
     fail_msg: >-
       Archive de backup potentiellement dangereuse (paths relatifs ou '..').
       Contenu: {{ campaign_restore_tar_list.stdout_lines | default([]) }}

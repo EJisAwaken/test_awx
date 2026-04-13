@@ -1,0 +1,71 @@
+---
+- name: Créer le répertoire de collecte (after)
+  become: true
+  ansible.builtin.file:
+    path: "{{ campaign_collect_dir }}/{{ campaign_id }}/after"
+    state: directory
+    mode: '0755'
+
+- name: Snapshot système (after)
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    {
+      echo "== DATE =="; date -Is;
+      echo "== HOSTNAME =="; hostname -f 2>/dev/null || hostname;
+      echo "== UPTIME =="; uptime;
+      echo "== KERNEL =="; uname -a;
+      echo "== FAILED SYSTEMD UNITS ==";
+      systemctl --failed --no-pager 2>/dev/null || true;
+      echo "== REBOOT REQUIRED ==";
+      test -f /var/run/reboot-required && echo "yes" || echo "no";
+    } | sed 's/\r$//'
+  args:
+    executable: /bin/bash
+  register: campaign_collect_after_snapshot
+  changed_when: false
+
+- name: Écrire snapshot after
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/after/{{ inventory_hostname }}.snapshot.txt"
+    content: "{{ campaign_collect_after_snapshot.stdout | default('') }}"
+    mode: '0644'
+
+- name: Collecter logs apt (si Debian) after
+  when: ansible_facts.os_family == 'Debian'
+  become: true
+  ansible.builtin.shell: |
+    set -o pipefail
+    (
+      test -f /var/log/apt/history.log && tail -n 400 /var/log/apt/history.log || true
+      test -f /var/log/dpkg.log && tail -n 400 /var/log/dpkg.log || true
+    ) | sed 's/\r$//'
+  args:
+    executable: /bin/bash
+  register: campaign_collect_after_apt
+  changed_when: false
+  failed_when: false
+
+- name: Écrire logs apt after
+  when: ansible_facts.os_family == 'Debian'
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/after/{{ inventory_hostname }}.apt_tail.txt"
+    content: "{{ campaign_collect_after_apt.stdout | default('') }}"
+    mode: '0644'
+
+- name: Collecter journald after (best effort)
+  become: true
+  ansible.builtin.command: "journalctl --no-pager --since {{ campaign_collect_journal_since | quote }}"
+  register: campaign_collect_after_journal
+  changed_when: false
+  failed_when: false
+
+- name: Écrire journald after
+  become: true
+  ansible.builtin.copy:
+    dest: "{{ campaign_collect_dir }}/{{ campaign_id }}/after/{{ inventory_hostname }}.journal.txt"
+    content: "{{ campaign_collect_after_journal.stdout | default('') }}"
+    mode: '0644'
+

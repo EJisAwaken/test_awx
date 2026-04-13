@@ -8,6 +8,19 @@
   max_fail_percentage: "{{ campaign_max_fail_percentage | default(0) }}"
 
   pre_tasks:
+    - name: DEBUG - variables effectives de campagne (AWX/Ansible)
+      ansible.builtin.debug:
+        msg:
+          campaign_id_input: "{{ campaign_id | default('UNDEF') }}"
+          campaign_become: "{{ campaign_become | default('UNDEF') }}"
+          campaign_backup_enabled: "{{ campaign_backup_enabled | default('UNDEF') }}"
+          campaign_backup_dir: "{{ campaign_backup_dir | default('UNDEF') }}"
+          campaign_backup_paths: "{{ campaign_backup_paths | default('UNDEF') }}"
+          campaign_collect_enabled: "{{ campaign_collect_enabled | default('UNDEF') }}"
+          campaign_collect_dir: "{{ campaign_collect_dir | default('UNDEF') }}"
+      run_once: true
+      delegate_to: localhost
+
     - name: Générer un identifiant de campagne (si non fourni)
       ansible.builtin.set_fact:
         campaign_id: "{{ campaign_id | default(lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
@@ -19,6 +32,13 @@
         campaign_id_local: "{{ hostvars[inventory_hostname].campaign_id }}"
       run_once: true
       delegate_to: localhost
+
+    - name: Collecte BEFORE (logs/état)
+      when: (campaign_collect_enabled | default(true)) | bool
+      ansible.builtin.include_role:
+        name: campaign_collect
+      vars:
+        campaign_collect_stage: before
 
   roles:
     - role: campaign_prechecks
@@ -51,6 +71,13 @@
         - name: Stopper le play sur cet hôte après restauration
           ansible.builtin.fail:
             msg: "Echec pendant la campagne. Restauration tentée. Voir les logs et rapports."
+      always:
+        - name: Collecte AFTER (logs/état)
+          when: (campaign_collect_enabled | default(true)) | bool
+          ansible.builtin.include_role:
+            name: campaign_collect
+          vars:
+            campaign_collect_stage: after
 
   post_tasks:
     - name: Marquer l'hôte comme patché dans un fact (utile pour la collecte)
@@ -83,6 +110,14 @@
         flat: false
       failed_when: false
 
+    - name: Rapatrier la collecte BEFORE/AFTER (si activée)
+      when: (campaign_collect_enabled | default(true)) | bool
+      ansible.builtin.fetch:
+        src: "{{ campaign_collect_dir | default('/var/log/ansible/campaign') }}/{{ campaign_id_effective }}/"
+        dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/collect/"
+        flat: false
+      failed_when: false
+
     - name: Écrire un petit statut par hôte
       ansible.builtin.copy:
         dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/{{ inventory_hostname }}.status.json"
@@ -110,7 +145,9 @@
         dest: "{{ campaign_report_root | default('./reports') }}/{{ campaign_id_effective }}/summary.json"
         content: "{{ {
           'campaign_id': campaign_id_effective,
-          'hosts': groups['all'] | default([])
+          'generated_at': lookup('pipe', 'date -Is'),
+          'hosts': (groups['all'] | default([])) | map('extract', hostvars) | map(attribute='inventory_hostname', default=None) | list,
+          'per_host': dict((groups['all'] | default([])) | zip((groups['all'] | default([])) | map('extract', hostvars) | list))
         } | to_nice_json }}"
         mode: '0644'
 
